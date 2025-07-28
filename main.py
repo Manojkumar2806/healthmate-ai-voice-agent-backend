@@ -134,3 +134,7 @@ async def transcribe_audio(audio: UploadFile = File(...)):
     except Exception as e:
         logging.error(f"Transcription error: {e}")
         raise HTTPException(status_code=500, detail="Transcription failed")
+
+@app.get("/")
+def read_root():
+    return {"message": "Hello from HealthMate AI Backend!"}

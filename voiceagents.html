@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DevHealth Voice</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container py-5 text-center">
+  <h2>🎙️ DevHealth Voice</h2>
+  <button id="recordBtn" class="btn btn-success">Start Recording</button>
+  <button id="stopBtn" class="btn btn-danger ms-2" disabled>Stop & Transcribe</button>
+
+  <div class="mt-4">
+    <h5>Transcription:</h5>
+    <div id="result" class="border p-3 rounded bg-white text-start" style="min-height: 120px;"></div>
+  </div>
+</div>
+
+<script>
+  let mediaRecorder, audioChunks = [];
+  const recordBtn = document.getElementById("recordBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const result = document.getElementById("result");
+
+  recordBtn.onclick = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+    audioChunks = [];
+
+    mediaRecorder.ondataavailable = e => e.data.size > 0 && audioChunks.push(e.data);
+    mediaRecorder.onstop = async () => {
+      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      const formData = new FormData();
+      formData.append("audio", audioBlob, "message.webm");
+      result.innerHTML = "⏳ Transcribing...";
+
+      const response = await fetch("http://localhost:8000/transcribe", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await response.json();
+      const text = data.text || "No transcription.";
+      result.innerHTML = `<strong>${text}</strong>`;
+
+      // Auto-query RAG backend
+      const queryRes = await fetch("http://localhost:8000/api/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: text })
+      });
+      const queryData = await queryRes.json();
+      result.innerHTML += `<hr><strong>🤖 Thinking:</strong><br>${queryData.thinking}<br><br><strong>💡 Answer:</strong><br>${queryData.answer}`;
+    };
+
+    mediaRecorder.start();
+    recordBtn.disabled = true;
+    stopBtn.disabled = false;
+  };
+
+  stopBtn.onclick = () => {
+    mediaRecorder.stop();
+    recordBtn.disabled = false;
+    stopBtn.disabled = true;
+  };
+</script>
+</body>
+</html>
